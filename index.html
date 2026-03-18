@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SSH Manager</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d0f14;
+      --surface: #151820;
+      --surface2: #1c2030;
+      --border: #252a38;
+      --accent-open: #4ade80;
+      --accent-close: #f87171;
+      --accent-blue: #60a5fa;
+      --accent-cyan: #22d3ee;
+      --text: #e2e8f0;
+      --muted: #64748b;
+    }
+
+    body {
+      font-family: 'Noto Sans JP', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 28px;
+      width: 100%;
+      max-width: 460px;
+      position: relative;
+      overflow: hidden;
+    }
+    .card::before {
+      content: '';
+      position: absolute;
+      top: -100px; right: -100px;
+      width: 260px; height: 260px;
+      background: radial-gradient(circle, rgba(96,165,250,0.06) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    /* --- Header --- */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .header-left h1 {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .header-left .tagline {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    .status-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--muted);
+      box-shadow: 0 0 0 3px rgba(100,116,139,0.2);
+      transition: all 0.3s;
+    }
+    .status-dot.open {
+      background: var(--accent-open);
+      box-shadow: 0 0 0 4px rgba(74,222,128,0.2), 0 0 12px rgba(74,222,128,0.4);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 4px rgba(74,222,128,0.2), 0 0 12px rgba(74,222,128,0.3); }
+      50% { box-shadow: 0 0 0 6px rgba(74,222,128,0.1), 0 0 20px rgba(74,222,128,0.5); }
+    }
+
+    /* --- Section Label --- */
+    .section-label {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 6px;
+    }
+
+    /* --- IP Fields --- */
+    .ip-section { margin-bottom: 20px; }
+    .ip-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .ip-tag {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--accent-cyan);
+      background: rgba(34,211,238,0.1);
+      border: 1px solid rgba(34,211,238,0.25);
+      padding: 3px 7px;
+      border-radius: 5px;
+      min-width: 40px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .ip-tag.v6 {
+      color: var(--accent-blue);
+      background: rgba(96,165,250,0.1);
+      border-color: rgba(96,165,250,0.25);
+    }
+    input[type="text"] {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      padding: 9px 12px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input[type="text"]:focus { border-color: var(--accent-cyan); }
+    .ip-refresh {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--muted);
+      font-size: 14px;
+      width: 36px; height: 36px;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: all 0.2s;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .ip-refresh:hover { border-color: var(--accent-cyan); color: var(--accent-cyan); }
+    .ip-refresh.spinning { animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* --- Divider --- */
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 20px 0;
+    }
+
+    /* --- Security List Dropdown --- */
+    .sl-section { margin-bottom: 20px; }
+    .sl-row { display: flex; gap: 8px; align-items: center; }
+    select {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      padding: 9px 12px;
+      outline: none;
+      cursor: pointer;
+      transition: border-color 0.2s;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2364748b' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 32px;
+    }
+    select:focus { border-color: var(--accent-blue); }
+    .sl-delete {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--muted);
+      font-size: 14px;
+      width: 36px; height: 36px;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: all 0.2s;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .sl-delete:hover { border-color: var(--accent-close); color: var(--accent-close); }
+
+    .sl-meta {
+      margin-top: 6px;
+      font-size: 11px;
+      color: var(--muted);
+      font-family: 'JetBrains Mono', monospace;
+      min-height: 16px;
+    }
+
+    /* --- Action Buttons --- */
+    .btn {
+      width: 100%;
+      padding: 13px;
+      border: none;
+      border-radius: 10px;
+      font-family: 'Noto Sans JP', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none !important; filter: none !important; }
+    .btn-open {
+      background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+      color: #052e16;
+    }
+    .btn-open:not(:disabled):hover { filter: brightness(1.1); transform: translateY(-1px); }
+    .btn-close {
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+      color: #fff;
+    }
+    .btn-close:not(:disabled):hover { filter: brightness(1.1); transform: translateY(-1px); }
+
+    /* --- Log --- */
+    .log-section { margin-top: 18px; }
+    .log-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: #94a3b8;
+      min-height: 56px;
+      max-height: 160px;
+      overflow-y: auto;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .log-line { padding: 1px 0; }
+    .log-line.success { color: var(--accent-open); }
+    .log-line.error   { color: var(--accent-close); }
+    .log-line.info    { color: var(--accent-cyan); }
+
+    /* --- Password Modal --- */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      backdrop-filter: blur(6px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    .overlay.hidden { display: none; }
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px;
+      width: 100%;
+      max-width: 360px;
+    }
+    .modal h2 { font-size: 18px; margin-bottom: 8px; }
+    .modal p  { font-size: 13px; color: var(--muted); margin-bottom: 20px; line-height: 1.6; }
+    .modal input[type="password"] {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      padding: 12px 14px;
+      outline: none;
+      margin-bottom: 16px;
+      transition: border-color 0.2s;
+    }
+    .modal input[type="password"]:focus { border-color: var(--accent-open); }
+    .modal .btn { margin-bottom: 0; }
+    .modal-err { font-size: 12px; color: var(--accent-close); margin-top: 10px; display: none; }
+  </style>
+</head>
+<body>
+
+<!-- Password Modal -->
+<div class="overlay" id="modal-overlay">
+  <div class="modal">
+    <h2>🔐 認証</h2>
+    <p>APIKEY を復号するためのパスワードを入力してください。</p>
+    <input type="password" id="modal-pass" placeholder="パスワード" autocomplete="current-password">
+    <button class="btn btn-open" onclick="unlockApiKey()">ロック解除</button>
+    <div class="modal-err" id="modal-err">パスワードが違います</div>
+  </div>
+</div>
+
+<div class="card" id="main-card" style="display:none;">
+  <div class="header">
+    <div class="header-left">
+      <h1>SSH Manager</h1>
+      <div class="tagline">OCI Security List Controller</div>
+    </div>
+    <div class="status-dot" id="status-dot"></div>
+  </div>
+
+  <!-- IP Section -->
+  <div class="ip-section">
+    <div class="section-label">接続元 IPアドレス</div>
+    <div class="ip-row">
+      <span class="ip-tag">v4</span>
+      <input type="text" id="ip4" placeholder="取得中...">
+      <button class="ip-refresh" id="btn-refresh" title="再取得" onclick="fetchIps()">↺</button>
+    </div>
+    <div class="ip-row">
+      <span class="ip-tag v6">v6</span>
+      <input type="text" id="ip6" placeholder="取得中...">
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- Security List Dropdown -->
+  <div class="sl-section">
+    <div class="section-label">保存済み Security List</div>
+    <div class="sl-row">
+      <select id="sl-select" onchange="onSlChange()">
+        <option value="">-- 選択してください --</option>
+      </select>
+      <button class="sl-delete" title="選択を削除" onclick="deleteSelected()">✕</button>
+    </div>
+    <div class="sl-meta" id="sl-meta"></div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- Action Buttons -->
+  <button class="btn btn-open"  id="btn-open"  onclick="openSsh()">🔓 SSH を開放する</button>
+  <button class="btn btn-close" id="btn-close" onclick="closeSsh()" disabled>🔒 SSH を閉じる</button>
+
+  <!-- Log -->
+  <div class="log-section">
+    <div class="section-label" style="margin-bottom:8px;">ログ</div>
+    <div class="log-box" id="log-box"></div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  ★ 設定エリア ★
+// ============================================================
+const API_BASE = "https://dtpg5hmgei.execute-api.ap-northeast-1.amazonaws.com/prod";
+
+// encrypt-tool.html で生成した暗号文字列をここに貼り付け
+const ENCRYPTED_KEY = "cHSaVuNHOF3NR9Fzx+Q9P7SQuuR25+rpQiP/V+s1/2v5WuPxbyGr862qZzw6yX7SVg/9/DnQfWrDRkkfVncz76WdQ2NKIdJkSIgdcYWKWPUJvS1U";
+
+// ============================================================
+//  APIKEY 復号ロジック（AES-GCM / PBKDF2）
+// ============================================================
+async function decryptApiKey(encryptedB64, password) {
+  const combined = Uint8Array.from(atob(encryptedB64), c => c.charCodeAt(0));
+  const salt   = combined.slice(0, 16);
+  const iv     = combined.slice(16, 28);
+  const cipher = combined.slice(28);
+
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']
+  );
+  const key = await crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: 200000, hash: 'SHA-256' },
+    keyMaterial,
+    { name: 'AES-GCM', length: 256 },
+    false, ['decrypt']
+  );
+  const plainBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, cipher);
+  return new TextDecoder().decode(plainBuf);
+}
+
+// ============================================================
+//  State
+// ============================================================
+const LS_KEY = 'ssh_manager_sessions';
+let apiKey = null;  // 復号後のキー（メモリのみ）
+
+function loadSessions() {
+  try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); }
+  catch { return []; }
+}
+function saveSessions(sessions) {
+  localStorage.setItem(LS_KEY, JSON.stringify(sessions));
+}
+
+// ============================================================
+//  Modal / Unlock
+// ============================================================
+async function unlockApiKey() {
+  const pass = document.getElementById('modal-pass').value;
+  if (!pass) return;
+
+  try {
+    apiKey = await decryptApiKey(ENCRYPTED_KEY, pass);
+    document.getElementById('modal-overlay').classList.add('hidden');
+    document.getElementById('main-card').style.display = '';
+    log('🔓 認証成功', 'success');
+    fetchIps();
+    renderSlDropdown();
+  } catch {
+    document.getElementById('modal-err').style.display = 'block';
+    setTimeout(() => { document.getElementById('modal-err').style.display = 'none'; }, 3000);
+  }
+}
+
+// Enter キーでロック解除
+document.getElementById('modal-pass').addEventListener('keydown', e => {
+  if (e.key === 'Enter') unlockApiKey();
+});
+
+// ENCRYPTED_KEY が未設定の場合はモーダルをスキップ
+window.addEventListener('DOMContentLoaded', () => {
+  if (ENCRYPTED_KEY === 'YOUR_ENCRYPTED_APIKEY_BASE64_HERE') {
+    document.getElementById('modal-overlay').classList.add('hidden');
+    document.getElementById('main-card').style.display = '';
+    apiKey = 'your-api-key-here'; // フォールバック
+    log('⚠ ENCRYPTED_KEY 未設定 — デモモード', 'info');
+    fetchIps();
+    renderSlDropdown();
+  }
+});
+
+// ============================================================
+//  IP 取得
+// ============================================================
+async function fetchIps() {
+  const refreshBtn = document.getElementById('btn-refresh');
+  refreshBtn.classList.add('spinning');
+  document.getElementById('ip4').value = '取得中...';
+  document.getElementById('ip6').value = '取得中...';
+
+  const [v4, v6] = await Promise.allSettled([
+    fetch('https://api4.my-ip.io/ip').then(r => r.text()),
+    fetch('https://api6.my-ip.io/ip').then(r => r.text())
+  ]);
+
+  document.getElementById('ip4').value = v4.status === 'fulfilled' ? v4.value.trim() : '';
+  document.getElementById('ip6').value = v6.status === 'fulfilled' ? v6.value.trim() : '';
+  refreshBtn.classList.remove('spinning');
+  log(`IP 取得完了 v4=${document.getElementById('ip4').value || 'なし'}`, 'info');
+}
+
+// ============================================================
+//  Security List Dropdown
+// ============================================================
+function renderSlDropdown() {
+  const sessions = loadSessions();
+  const sel = document.getElementById('sl-select');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">-- 選択してください --</option>';
+  sessions.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s.id;
+    opt.textContent = `${s.id.slice(0, 20)}… (${s.ip4 || s.ip6})`;
+    sel.appendChild(opt);
+  });
+  if (sessions.find(s => s.id === prev)) sel.value = prev;
+  onSlChange();
+}
+
+function onSlChange() {
+  const sessions = loadSessions();
+  const id = document.getElementById('sl-select').value;
+  const s = sessions.find(s => s.id === id);
+  const meta = document.getElementById('sl-meta');
+  if (s) {
+    meta.textContent = `登録: ${new Date(s.createdAt).toLocaleString('ja-JP')}  v4: ${s.ip4 || '-'}  v6: ${s.ip6 || '-'}`;
+    document.getElementById('btn-close').disabled = false;
+  } else {
+    meta.textContent = '';
+    document.getElementById('btn-close').disabled = true;
+  }
+}
+
+function deleteSelected() {
+  const id = document.getElementById('sl-select').value;
+  if (!id) return;
+  const sessions = loadSessions().filter(s => s.id !== id);
+  saveSessions(sessions);
+  renderSlDropdown();
+  log(`🗑 削除: ${id.slice(0,20)}…`, 'info');
+}
+
+// ============================================================
+//  API Calls
+// ============================================================
+async function openSsh() {
+  const ip4 = document.getElementById('ip4').value.trim();
+  const ip6 = document.getElementById('ip6').value.trim();
+  if (!ip4 && !ip6) return alert('IP アドレスを取得できていません');
+
+  setLoading(true);
+  log('🔓 SSH 開放リクエスト送信中...', 'info');
+
+  const body = {};
+  if (ip4) body.IPv4 = ip4;
+  if (ip6) body.IPv6 = ip6;
+
+  try {
+    const res = await fetch(`${API_BASE}/open`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+      body: JSON.stringify(body)
+    });
+  const raw  = await res.json();
+  const data = (raw.body && typeof raw.body === 'string') ? JSON.parse(raw.body) : raw;
+
+    if (data.security_list_id) {
+      const session = {
+        id: data.security_list_id,
+        ip4: ip4 || null,
+        ip6: ip6 || null,
+        createdAt: new Date().toISOString(),
+        autoCloseAt: data.auto_close_at || null
+      };
+      const sessions = loadSessions();
+      sessions.unshift(session);
+      saveSessions(sessions);
+      renderSlDropdown();
+      document.getElementById('sl-select').value = data.security_list_id;
+      onSlChange();
+
+      document.getElementById('status-dot').classList.add('open');
+      document.getElementById('btn-open').disabled = true;
+
+      const autoStr = data.auto_close_at
+        ? `  自動削除: ${new Date(data.auto_close_at).toLocaleTimeString('ja-JP')}`
+        : '';
+      log(`✅ 開放成功  ID: ${data.security_list_id.slice(0,20)}…${autoStr}`, 'success');
+    } else {
+      log(`⚠ レスポンス: ${JSON.stringify(data)}`, 'error');
+    }
+  } catch (e) {
+    log(`❌ エラー: ${e.message}`, 'error');
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function closeSsh() {
+  const id = document.getElementById('sl-select').value;
+  if (!id) return alert('Security List ID を選択してください');
+
+  setLoading(true);
+  log(`🔒 SSH 閉鎖中... ID: ${id.slice(0,20)}…`, 'info');
+
+  try {
+    const res = await fetch(`${API_BASE}/close`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+      body: JSON.stringify({ security_list_id: id })
+    });
+    const data = await res.json();
+
+    // 成功したらローカルストレージから削除
+    const sessions = loadSessions().filter(s => s.id !== id);
+    saveSessions(sessions);
+    renderSlDropdown();
+
+    document.getElementById('status-dot').classList.remove('open');
+    document.getElementById('btn-open').disabled = false;
+    log(`✅ 閉鎖成功  ID: ${id.slice(0,20)}…`, 'success');
+  } catch (e) {
+    log(`❌ エラー: ${e.message}`, 'error');
+  } finally {
+    setLoading(false);
+  }
+}
+
+// ============================================================
+//  Utilities
+// ============================================================
+function setLoading(on) {
+  document.getElementById('btn-open').disabled  = on;
+  document.getElementById('btn-close').disabled = on;
+}
+
+function log(msg, type = '') {
+  const box = document.getElementById('log-box');
+  const line = document.createElement('div');
+  line.className = `log-line ${type}`;
+  const ts = new Date().toLocaleTimeString('ja-JP');
+  line.textContent = `[${ts}] ${msg}`;
+  box.prepend(line);
+}
+</script>
+</body>
+</html>

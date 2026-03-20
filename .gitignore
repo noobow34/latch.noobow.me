@@ -368,3 +368,5 @@ FodyWeavers.xsd
 !.dev.vars.example
 .env*
 !.env.example
+
+wrangler.toml

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SSH Manager</title>
+  <title>OCI Security List Controller</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap');
 
@@ -12,7 +12,6 @@
     :root {
       --bg: #0d0f14;
       --surface: #151820;
-      --surface2: #1c2030;
       --border: #252a38;
       --accent-open: #4ade80;
       --accent-close: #f87171;
@@ -59,15 +58,10 @@
       justify-content: space-between;
       margin-bottom: 20px;
     }
-    .header-left h1 {
-      font-size: 20px;
+    .header h1 {
+      font-size: 18px;
       font-weight: 700;
       letter-spacing: -0.02em;
-    }
-    .header-left .tagline {
-      font-size: 12px;
-      color: var(--muted);
-      margin-top: 2px;
     }
     .status-dot {
       width: 10px; height: 10px;
@@ -75,6 +69,7 @@
       background: var(--muted);
       box-shadow: 0 0 0 3px rgba(100,116,139,0.2);
       transition: all 0.3s;
+      flex-shrink: 0;
     }
     .status-dot.open {
       background: var(--accent-open);
@@ -83,7 +78,7 @@
     }
     @keyframes pulse {
       0%, 100% { box-shadow: 0 0 0 4px rgba(74,222,128,0.2), 0 0 12px rgba(74,222,128,0.3); }
-      50% { box-shadow: 0 0 0 6px rgba(74,222,128,0.1), 0 0 20px rgba(74,222,128,0.5); }
+      50%       { box-shadow: 0 0 0 6px rgba(74,222,128,0.1), 0 0 20px rgba(74,222,128,0.5); }
     }
 
     /* --- Section Label --- */
@@ -152,11 +147,7 @@
     @keyframes spin { to { transform: rotate(360deg); } }
 
     /* --- Divider --- */
-    .divider {
-      border: none;
-      border-top: 1px solid var(--border);
-      margin: 20px 0;
-    }
+    .divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
 
     /* --- Security List Dropdown --- */
     .sl-section { margin-bottom: 20px; }
@@ -193,7 +184,6 @@
       display: flex; align-items: center; justify-content: center;
     }
     .sl-delete:hover { border-color: var(--accent-close); color: var(--accent-close); }
-
     .sl-meta {
       margin-top: 6px;
       font-size: 11px;
@@ -220,15 +210,9 @@
       gap: 8px;
     }
     .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none !important; filter: none !important; }
-    .btn-open {
-      background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
-      color: #052e16;
-    }
-    .btn-open:not(:disabled):hover { filter: brightness(1.1); transform: translateY(-1px); }
-    .btn-close {
-      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-      color: #fff;
-    }
+    .btn-open  { background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); color: #052e16; }
+    .btn-close { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: #fff; }
+    .btn-open:not(:disabled):hover  { filter: brightness(1.1); transform: translateY(-1px); }
     .btn-close:not(:disabled):hover { filter: brightness(1.1); transform: translateY(-1px); }
 
     /* --- Log --- */
@@ -248,74 +232,71 @@
       white-space: pre-wrap;
       word-break: break-all;
     }
-    .log-line { padding: 1px 0; }
     .log-line.success { color: var(--accent-open); }
     .log-line.error   { color: var(--accent-close); }
     .log-line.info    { color: var(--accent-cyan); }
 
-    /* --- Password Modal --- */
-    .overlay {
+    /* --- Loading / Error Screen --- */
+    .fullscreen {
       position: fixed;
       inset: 0;
-      background: rgba(0,0,0,0.75);
-      backdrop-filter: blur(6px);
+      background: var(--bg);
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
-      z-index: 100;
+      gap: 16px;
+      z-index: 200;
+      padding: 24px;
+      text-align: center;
     }
-    .overlay.hidden { display: none; }
-    .modal {
+    .fullscreen.hidden  { display: none; }
+    .fullscreen-title   { font-size: 15px; font-weight: 700; }
+    .fullscreen-sub     { font-size: 12px; color: var(--muted); line-height: 1.8; }
+    .fullscreen-sub code {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 8px 12px;
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 28px;
-      width: 100%;
-      max-width: 360px;
-    }
-    .modal h2 { font-size: 18px; margin-bottom: 8px; }
-    .modal p  { font-size: 13px; color: var(--muted); margin-bottom: 20px; line-height: 1.6; }
-    .modal input[type="password"] {
-      width: 100%;
-      background: var(--bg);
-      border: 1px solid var(--border);
       border-radius: 8px;
-      color: var(--text);
       font-family: 'JetBrains Mono', monospace;
-      font-size: 14px;
-      padding: 12px 14px;
-      outline: none;
-      margin-bottom: 16px;
-      transition: border-color 0.2s;
+      font-size: 11px;
+      color: var(--accent-cyan);
+      word-break: break-all;
     }
-    .modal input[type="password"]:focus { border-color: var(--accent-open); }
-    .modal .btn { margin-bottom: 0; }
-    .modal-err { font-size: 12px; color: var(--accent-close); margin-top: 10px; display: none; }
+    .spinner {
+      width: 32px; height: 32px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent-cyan);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
   </style>
 </head>
 <body>
 
-<!-- Password Modal -->
-<div class="overlay" id="modal-overlay">
-  <div class="modal">
-    <h2>🔐 認証</h2>
-    <p>APIKEY を復号するためのパスワードを入力してください。</p>
-    <input type="password" id="modal-pass" placeholder="パスワード" autocomplete="current-password">
-    <button class="btn btn-open" onclick="unlockApiKey()">ロック解除</button>
-    <div class="modal-err" id="modal-err">パスワードが違います</div>
-  </div>
+<!-- 起動時ローディング -->
+<div class="fullscreen" id="loading-screen">
+  <div class="spinner"></div>
+  <div class="fullscreen-title">OCI Security List Controller</div>
+  <div class="fullscreen-sub">接続中...</div>
 </div>
 
+<!-- エラー画面 -->
+<div class="fullscreen hidden" id="error-screen">
+  <div style="font-size:28px">⚠️</div>
+  <div class="fullscreen-title">接続エラー</div>
+  <div class="fullscreen-sub" id="error-msg"></div>
+</div>
+
+<!-- メイン -->
 <div class="card" id="main-card" style="display:none;">
   <div class="header">
-    <div class="header-left">
-      <h1>SSH Manager</h1>
-      <div class="tagline">OCI Security List Controller</div>
-    </div>
+    <h1>OCI Security List Controller</h1>
     <div class="status-dot" id="status-dot"></div>
   </div>
 
-  <!-- IP Section -->
   <div class="ip-section">
     <div class="section-label">接続元 IPアドレス</div>
     <div class="ip-row">
@@ -331,7 +312,6 @@
 
   <hr class="divider">
 
-  <!-- Security List Dropdown -->
   <div class="sl-section">
     <div class="section-label">保存済み Security List</div>
     <div class="sl-row">
@@ -345,11 +325,9 @@
 
   <hr class="divider">
 
-  <!-- Action Buttons -->
   <button class="btn btn-open"  id="btn-open"  onclick="openSsh()">🔓 SSH を開放する</button>
   <button class="btn btn-close" id="btn-close" onclick="closeSsh()" disabled>🔒 SSH を閉じる</button>
 
-  <!-- Log -->
   <div class="log-section">
     <div class="section-label" style="margin-bottom:8px;">ログ</div>
     <div class="log-box" id="log-box"></div>
@@ -358,93 +336,84 @@
 
 <script>
 // ============================================================
-//  ★ 設定エリア ★
+//  State（全てKVから取得・ソースに秘密情報なし）
 // ============================================================
-const API_BASE = "https://dtpg5hmgei.execute-api.ap-northeast-1.amazonaws.com/prod";
-
-// encrypt-tool.html で生成した暗号文字列をここに貼り付け
-const ENCRYPTED_KEY = "LfD5zBFG4cjTvC7Rj3drNj0erWVjYp2KRET/JBRDgrW879i2cHewbmC55/kPqAbVKm11Ins9u4dF3DBgIyEV1ZBY6/0hHGo9rCaIL93qViOUHMF4";
-
-// ============================================================
-//  APIKEY 復号ロジック（AES-GCM / PBKDF2）
-// ============================================================
-async function decryptApiKey(encryptedB64, password) {
-  const combined = Uint8Array.from(atob(encryptedB64), c => c.charCodeAt(0));
-  const salt   = combined.slice(0, 16);
-  const iv     = combined.slice(16, 28);
-  const cipher = combined.slice(28);
-
-  const enc = new TextEncoder();
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']
-  );
-  const key = await crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt, iterations: 200000, hash: 'SHA-256' },
-    keyMaterial,
-    { name: 'AES-GCM', length: 256 },
-    false, ['decrypt']
-  );
-  const plainBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, cipher);
-  return new TextDecoder().decode(plainBuf);
-}
+let apiKey         = null;
+let apiBase        = null;
+let cachedSessions = [];
 
 // ============================================================
-//  State
+//  起動処理
 // ============================================================
-const LS_KEY = 'ssh_manager_sessions';
-let apiKey = null;  // 復号後のキー（メモリのみ）
-
-function loadSessions() {
-  try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); }
-  catch { return []; }
-}
-function saveSessions(sessions) {
-  localStorage.setItem(LS_KEY, JSON.stringify(sessions));
-}
-
-// ============================================================
-//  Modal / Unlock
-// ============================================================
-async function unlockApiKey() {
-  const pass = document.getElementById('modal-pass').value;
-  if (!pass) return;
-
+window.addEventListener('DOMContentLoaded', async () => {
   try {
-    apiKey = await decryptApiKey(ENCRYPTED_KEY, pass);
-    document.getElementById('modal-overlay').classList.add('hidden');
-    document.getElementById('main-card').style.display = '';
-    log('🔓 認証成功', 'success');
+    const data = await kvGet();
+
+    if (!data.apikey) {
+      showError(
+        'KV に <b>apikey</b> が登録されていません。',
+        'Cloudflare ダッシュボード → Workers & Pages → KV → SSH_SESSIONS<br>キー: apikey / 値: your-api-key'
+      );
+      return;
+    }
+    if (!data.api_base) {
+      showError(
+        'KV に <b>api_base</b> が登録されていません。',
+        'Cloudflare ダッシュボード → Workers & Pages → KV → SSH_SESSIONS<br>キー: api_base / 値: https://xxxxxx.execute-api.ap-northeast-1.amazonaws.com/prod'
+      );
+      return;
+    }
+
+    apiKey         = data.apikey;
+    apiBase        = data.api_base;
+    cachedSessions = data.sessions;
+
+    renderSlDropdown(cachedSessions);
+    hideLoading();
     fetchIps();
-    renderSlDropdown();
-  } catch {
-    document.getElementById('modal-err').style.display = 'block';
-    setTimeout(() => { document.getElementById('modal-err').style.display = 'none'; }, 3000);
+    log('✅ 接続完了', 'success');
+  } catch (e) {
+    showError('KVストアへの接続に失敗しました。', e.message);
   }
+});
+
+// ============================================================
+//  KV API
+// ============================================================
+async function kvGet() {
+  const res = await fetch('/api/sessions');
+  if (!res.ok) throw new Error(`GET /api/sessions → ${res.status}`);
+  return res.json();
 }
 
-// Enter キーでロック解除
-document.getElementById('modal-pass').addEventListener('keydown', e => {
-  if (e.key === 'Enter') unlockApiKey();
-});
+async function kvAddSession(session) {
+  const res = await fetch('/api/sessions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(session)
+  });
+  if (!res.ok) throw new Error(`POST /api/sessions → ${res.status}`);
+  const idx = cachedSessions.findIndex(s => s.id === session.id);
+  if (idx >= 0) cachedSessions[idx] = session;
+  else cachedSessions.unshift(session);
+}
 
-// ENCRYPTED_KEY が未設定の場合はモーダルをスキップ
-window.addEventListener('DOMContentLoaded', () => {
-  if (ENCRYPTED_KEY === 'YOUR_ENCRYPTED_APIKEY_BASE64_HERE') {
-    document.getElementById('modal-overlay').classList.add('hidden');
-    document.getElementById('main-card').style.display = '';
-    apiKey = 'your-api-key-here'; // フォールバック
-    log('⚠ ENCRYPTED_KEY 未設定 — デモモード', 'info');
-    fetchIps();
-    renderSlDropdown();
-  }
-});
+async function kvDeleteSession(id) {
+  const res = await fetch('/api/sessions', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id })
+  });
+  if (!res.ok) throw new Error(`DELETE /api/sessions → ${res.status}`);
+  cachedSessions = cachedSessions.filter(s => s.id !== id);
+}
 
 // ============================================================
 //  IP 取得
 // ============================================================
 async function fetchIps() {
-  const refreshBtn = document.getElementById('btn-refresh');
-  refreshBtn.classList.add('spinning');
+  const btn = document.getElementById('btn-refresh');
+  btn.classList.add('spinning');
   document.getElementById('ip4').value = '取得中...';
   document.getElementById('ip6').value = '取得中...';
 
@@ -455,22 +424,21 @@ async function fetchIps() {
 
   document.getElementById('ip4').value = v4.status === 'fulfilled' ? v4.value.trim() : '';
   document.getElementById('ip6').value = v6.status === 'fulfilled' ? v6.value.trim() : '';
-  refreshBtn.classList.remove('spinning');
-  log(`IP 取得完了 v4=${document.getElementById('ip4').value || 'なし'}`, 'info');
+  btn.classList.remove('spinning');
+  log(`IP 取得完了  v4: ${document.getElementById('ip4').value || 'なし'}  v6: ${document.getElementById('ip6').value || 'なし'}`, 'info');
 }
 
 // ============================================================
 //  Security List Dropdown
 // ============================================================
-function renderSlDropdown() {
-  const sessions = loadSessions();
-  const sel = document.getElementById('sl-select');
+function renderSlDropdown(sessions) {
+  const sel  = document.getElementById('sl-select');
   const prev = sel.value;
   sel.innerHTML = '<option value="">-- 選択してください --</option>';
   sessions.forEach(s => {
     const opt = document.createElement('option');
     opt.value = s.id;
-    opt.textContent = `${s.id.slice(0, 20)}… (${s.ip4 || s.ip6})`;
+    opt.textContent = `${s.id.slice(0, 20)}… (${s.ip4 || s.ip6 || '-'})`;
     sel.appendChild(opt);
   });
   if (sessions.find(s => s.id === prev)) sel.value = prev;
@@ -478,12 +446,14 @@ function renderSlDropdown() {
 }
 
 function onSlChange() {
-  const sessions = loadSessions();
-  const id = document.getElementById('sl-select').value;
-  const s = sessions.find(s => s.id === id);
+  const id   = document.getElementById('sl-select').value;
+  const s    = cachedSessions.find(s => s.id === id);
   const meta = document.getElementById('sl-meta');
   if (s) {
-    meta.textContent = `登録: ${new Date(s.createdAt).toLocaleString('ja-JP')}  v4: ${s.ip4 || '-'}  v6: ${s.ip6 || '-'}`;
+    const closeStr = s.autoCloseAt
+      ? `  自動削除: ${new Date(s.autoCloseAt).toLocaleTimeString('ja-JP')}`
+      : '';
+    meta.textContent = `登録: ${new Date(s.createdAt).toLocaleString('ja-JP')}  v4: ${s.ip4 || '-'}  v6: ${s.ip6 || '-'}${closeStr}`;
     document.getElementById('btn-close').disabled = false;
   } else {
     meta.textContent = '';
@@ -491,17 +461,20 @@ function onSlChange() {
   }
 }
 
-function deleteSelected() {
+async function deleteSelected() {
   const id = document.getElementById('sl-select').value;
   if (!id) return;
-  const sessions = loadSessions().filter(s => s.id !== id);
-  saveSessions(sessions);
-  renderSlDropdown();
-  log(`🗑 削除: ${id.slice(0,20)}…`, 'info');
+  try {
+    await kvDeleteSession(id);
+    renderSlDropdown(cachedSessions);
+    log(`🗑 削除: ${id.slice(0, 20)}…`, 'info');
+  } catch (e) {
+    log(`❌ 削除失敗: ${e.message}`, 'error');
+  }
 }
 
 // ============================================================
-//  API Calls
+//  SSH 開放 / 閉鎖
 // ============================================================
 async function openSsh() {
   const ip4 = document.getElementById('ip4').value.trim();
@@ -516,36 +489,33 @@ async function openSsh() {
   if (ip6) body.IPv6 = ip6;
 
   try {
-    const res = await fetch(`${API_BASE}/open`, {
+    const res = await fetch(`${apiBase}/open`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
       body: JSON.stringify(body)
     });
-  const raw  = await res.json();
-  const data = (raw.body && typeof raw.body === 'string') ? JSON.parse(raw.body) : raw;
+    const raw  = await res.json();
+    const data = (raw.body && typeof raw.body === 'string') ? JSON.parse(raw.body) : raw;
 
     if (data.security_list_id) {
       const session = {
-        id: data.security_list_id,
-        ip4: ip4 || null,
-        ip6: ip6 || null,
-        createdAt: new Date().toISOString(),
+        id:          data.security_list_id,
+        ip4:         ip4 || null,
+        ip6:         ip6 || null,
+        createdAt:   new Date().toISOString(),
         autoCloseAt: data.auto_close_at || null
       };
-      const sessions = loadSessions();
-      sessions.unshift(session);
-      saveSessions(sessions);
-      renderSlDropdown();
+      await kvAddSession(session);
+      renderSlDropdown(cachedSessions);
       document.getElementById('sl-select').value = data.security_list_id;
       onSlChange();
-
       document.getElementById('status-dot').classList.add('open');
       document.getElementById('btn-open').disabled = true;
 
       const autoStr = data.auto_close_at
         ? `  自動削除: ${new Date(data.auto_close_at).toLocaleTimeString('ja-JP')}`
         : '';
-      log(`✅ 開放成功  ID: ${data.security_list_id.slice(0,20)}…${autoStr}`, 'success');
+      log(`✅ 開放成功  ID: ${data.security_list_id.slice(0, 20)}…${autoStr}`, 'success');
     } else {
       log(`⚠ レスポンス: ${JSON.stringify(data)}`, 'error');
     }
@@ -561,24 +531,22 @@ async function closeSsh() {
   if (!id) return alert('Security List ID を選択してください');
 
   setLoading(true);
-  log(`🔒 SSH 閉鎖中... ID: ${id.slice(0,20)}…`, 'info');
+  log(`🔒 SSH 閉鎖中... ID: ${id.slice(0, 20)}…`, 'info');
 
   try {
-    const res = await fetch(`${API_BASE}/close`, {
+    const res = await fetch(`${apiBase}/close`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
       body: JSON.stringify({ security_list_id: id })
     });
-    const data = await res.json();
+    const raw  = await res.json();
+    const data = (raw.body && typeof raw.body === 'string') ? JSON.parse(raw.body) : raw;
 
-    // 成功したらローカルストレージから削除
-    const sessions = loadSessions().filter(s => s.id !== id);
-    saveSessions(sessions);
-    renderSlDropdown();
-
+    await kvDeleteSession(id);
+    renderSlDropdown(cachedSessions);
     document.getElementById('status-dot').classList.remove('open');
     document.getElementById('btn-open').disabled = false;
-    log(`✅ 閉鎖成功  ID: ${id.slice(0,20)}…`, 'success');
+    log(`✅ 閉鎖成功  ID: ${id.slice(0, 20)}…`, 'success');
   } catch (e) {
     log(`❌ エラー: ${e.message}`, 'error');
   } finally {
@@ -587,15 +555,27 @@ async function closeSsh() {
 }
 
 // ============================================================
-//  Utilities
+//  UI ユーティリティ
 // ============================================================
+function hideLoading() {
+  document.getElementById('loading-screen').classList.add('hidden');
+  document.getElementById('main-card').style.display = '';
+}
+
+function showError(title, detail = '') {
+  document.getElementById('loading-screen').classList.add('hidden');
+  document.getElementById('error-screen').classList.remove('hidden');
+  document.getElementById('error-msg').innerHTML =
+    `${title}${detail ? `<br><code>${detail}</code>` : ''}`;
+}
+
 function setLoading(on) {
   document.getElementById('btn-open').disabled  = on;
   document.getElementById('btn-close').disabled = on;
 }
 
 function log(msg, type = '') {
-  const box = document.getElementById('log-box');
+  const box  = document.getElementById('log-box');
   const line = document.createElement('div');
   line.className = `log-line ${type}`;
   const ts = new Date().toLocaleTimeString('ja-JP');

@@ -451,7 +451,7 @@ function onSlChange() {
   const meta = document.getElementById('sl-meta');
   if (s) {
     const closeStr = s.autoCloseAt
-      ? `  自動削除: ${new Date(s.autoCloseAt).toLocaleTimeString('ja-JP')}`
+      ? `  自動削除: ${new Date(s.autoCloseAt).toLocaleTimeString('ja-JP', { hour12: false })}`
       : '';
     meta.textContent = `登録: ${new Date(s.createdAt).toLocaleString('ja-JP')}  v4: ${s.ip4 || '-'}  v6: ${s.ip6 || '-'}${closeStr}`;
     document.getElementById('btn-close').disabled = false;
@@ -513,7 +513,7 @@ async function openSsh() {
       document.getElementById('btn-open').disabled = true;
 
       const autoStr = data.auto_close_at
-        ? `  自動削除: ${new Date(data.auto_close_at).toLocaleTimeString('ja-JP')}`
+        ? `  自動削除: ${new Date(data.auto_close_at).toLocaleTimeString('ja-JP', { hour12: false })}`
         : '';
       log(`✅ 開放成功  ID: ${data.security_list_id.slice(0, 20)}…${autoStr}`, 'success');
     } else {

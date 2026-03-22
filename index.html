@@ -310,6 +310,12 @@
     </div>
   </div>
 
+  <div class="ip-row" style="margin-top:4px;">
+    <span class="ip-tag" style="color:var(--accent-blue);background:rgba(96,165,250,0.1);border-color:rgba(96,165,250,0.25);min-width:40px;">⏱</span>
+    <input type="number" id="close-minutes" value="120" min="1" max="1440" style="width:90px;flex:none;text-align:right;">
+    <span style="font-size:12px;color:var(--muted);font-family:'JetBrains Mono',monospace;">分後に自動クローズ</span>
+  </div>
+
   <hr class="divider">
 
   <div class="sl-section">
@@ -336,6 +342,42 @@
 
 <script>
 // ============================================================
+//  ローカルテストモード
+//  localhost / file:// で開いたとき自動的に有効になります
+// ============================================================
+const IS_LOCAL = location.hostname === 'localhost'
+              || location.hostname === '127.0.0.1'
+              || location.protocol === 'file:';
+
+const MOCK_KV = {
+  apikey:   'mock-api-key-local',
+  api_base: 'http://localhost:mock',
+  sessions: [
+    {
+      id:          'ocid1.securitylist.oc1.ap-tokyo-1.aaaaaaaaMOCK001',
+      ip4:         '203.0.113.1',
+      ip6:         null,
+      createdAt:   new Date(Date.now() - 30 * 60000).toISOString(),
+      autoCloseAt: new Date(Date.now() + 90 * 60000).toISOString()
+    }
+  ]
+};
+
+async function mockOpenApi(body) {
+  await new Promise(r => setTimeout(r, 800)); // 擬似遅延
+  const id = `ocid1.securitylist.oc1.ap-tokyo-1.aaaaaaaaMOCK${Date.now()}`;
+  return {
+    security_list_id: id,
+    auto_close_at: new Date(Date.now() + (body.AUTO_CLOSE_MINUTES || 120) * 60000).toISOString()
+  };
+}
+
+async function mockCloseApi() {
+  await new Promise(r => setTimeout(r, 600));
+  return { result: 'ok' };
+}
+
+// ============================================================
 //  State（全てKVから取得・ソースに秘密情報なし）
 // ============================================================
 let apiKey         = null;
@@ -346,6 +388,20 @@ let cachedSessions = [];
 //  起動処理
 // ============================================================
 window.addEventListener('DOMContentLoaded', async () => {
+  if (IS_LOCAL) {
+    // ── ローカルテストモード ──────────────────────────
+    apiKey         = MOCK_KV.apikey;
+    apiBase        = MOCK_KV.api_base;
+    cachedSessions = [...MOCK_KV.sessions];
+    showLocalBadge();
+    renderSlDropdown(cachedSessions);
+    hideLoading();
+    fetchIps();
+    log('🧪 ローカルテストモードで起動しました（API通信はモックです）', 'info');
+    return;
+  }
+
+  // ── 本番モード ───────────────────────────────────────
   try {
     const data = await kvGet();
 
@@ -387,24 +443,28 @@ async function kvGet() {
 }
 
 async function kvAddSession(session) {
-  const res = await fetch('/api/sessions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(session)
-  });
-  if (!res.ok) throw new Error(`POST /api/sessions → ${res.status}`);
+  if (!IS_LOCAL) {
+    const res = await fetch('/api/sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(session)
+    });
+    if (!res.ok) throw new Error(`POST /api/sessions → ${res.status}`);
+  }
   const idx = cachedSessions.findIndex(s => s.id === session.id);
   if (idx >= 0) cachedSessions[idx] = session;
   else cachedSessions.unshift(session);
 }
 
 async function kvDeleteSession(id) {
-  const res = await fetch('/api/sessions', {
-    method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id })
-  });
-  if (!res.ok) throw new Error(`DELETE /api/sessions → ${res.status}`);
+  if (!IS_LOCAL) {
+    const res = await fetch('/api/sessions', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    });
+    if (!res.ok) throw new Error(`DELETE /api/sessions → ${res.status}`);
+  }
   cachedSessions = cachedSessions.filter(s => s.id !== id);
 }
 
@@ -481,21 +541,23 @@ async function openSsh() {
   const ip6 = document.getElementById('ip6').value.trim();
   if (!ip4 && !ip6) return alert('IP アドレスを取得できていません');
 
-  setLoading(true);
-  log('🔓 SSH 開放リクエスト送信中...', 'info');
+  const closeMinutes = parseInt(document.getElementById('close-minutes').value, 10) || 120;
 
-  const body = {};
+  setLoading(true);
+  log(`🔓 SSH 開放リクエスト送信中... (自動クローズ: ${closeMinutes}分後)`, 'info');
+
+  const body = { AUTO_CLOSE_MINUTES: closeMinutes };
   if (ip4) body.IPv4 = ip4;
   if (ip6) body.IPv6 = ip6;
 
   try {
-    const res = await fetch(`${apiBase}/open`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
-      body: JSON.stringify(body)
-    });
-    const raw  = await res.json();
-    const data = (raw.body && typeof raw.body === 'string') ? JSON.parse(raw.body) : raw;
+    const data = IS_LOCAL
+      ? await mockOpenApi(body)
+      : await fetch(`${apiBase}/open`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+          body: JSON.stringify(body)
+        }).then(r => r.json()).then(raw => (raw.body && typeof raw.body === 'string') ? JSON.parse(raw.body) : raw);
 
     if (data.security_list_id) {
       const session = {
@@ -534,13 +596,17 @@ async function closeSsh() {
   log(`🔒 SSH 閉鎖中... ID: ${id.slice(0, 20)}…`, 'info');
 
   try {
-    const res = await fetch(`${apiBase}/close`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
-      body: JSON.stringify({ security_list_id: id })
-    });
-    const raw  = await res.json();
-    const data = (raw.body && typeof raw.body === 'string') ? JSON.parse(raw.body) : raw;
+    if (!IS_LOCAL) {
+      const res = await fetch(`${apiBase}/close`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+        body: JSON.stringify({ security_list_id: id })
+      });
+      const raw  = await res.json();
+      const data = (raw.body && typeof raw.body === 'string') ? JSON.parse(raw.body) : raw;
+    } else {
+      await mockCloseApi();
+    }
 
     await kvDeleteSession(id);
     renderSlDropdown(cachedSessions);
@@ -557,6 +623,20 @@ async function closeSsh() {
 // ============================================================
 //  UI ユーティリティ
 // ============================================================
+function showLocalBadge() {
+  const badge = document.createElement('div');
+  badge.textContent = '🧪 LOCAL TEST MODE';
+  badge.style.cssText = `
+    position:absolute; top:10px; right:44px;
+    font-size:9px; font-weight:700; letter-spacing:0.08em;
+    font-family:'JetBrains Mono',monospace;
+    color:#fbbf24; background:rgba(251,191,36,0.12);
+    border:1px solid rgba(251,191,36,0.35);
+    padding:2px 7px; border-radius:4px;
+  `;
+  document.getElementById('main-card').appendChild(badge);
+}
+
 function hideLoading() {
   document.getElementById('loading-screen').classList.add('hidden');
   document.getElementById('main-card').style.display = '';
